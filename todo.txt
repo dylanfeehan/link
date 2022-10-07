@@ -1,0 +1,6 @@
+so it only works for small messages
+2 sources of error: 
+    - switching from list to queue, definitely not doing propert maintenance
+    - making the proper allocations of the right size for strings etc.
+
+might be heplful to trace the value of the string through.. 
