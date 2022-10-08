@@ -110,7 +110,7 @@ void addMessageNode(const char * to, const char * message, const char * from) {
 		// no. we allocate the space here. the only thing 
 		int length = strlen(message);
 		// this allocates space for the struct
-		struct message_node * new_message_tail = sizeof(struct message_node);
+		struct message_node * new_message_tail = malloc(sizeof(struct message_node));
 		// this allocates space for the pointer within the strut
 		new_message_tail->next = malloc(sizeof(struct message_node));
 		// this allocates space for the pointer to string wtihin the sturct
@@ -225,6 +225,7 @@ int cs1550_get_msg(const char * to, char * msg, const char * from)
 	printf("getting string\n");
 	   // wait how to do this?
 	char * temp = malloc(1024);
+	char * tempFrom = malloc(1024);
     temp = getStringListHead(nodeExists);
 	printf("yo: %s\n", temp);
 	printf("temp before cpy: %s\n", temp);
@@ -241,14 +242,27 @@ int cs1550_get_msg(const char * to, char * msg, const char * from)
 int main() {
 	printf("sending message\n");
 	cs1550_send_msg("dylan", "big", "feehan");
+	cs1550_send_msg("richie", "small", "dingle");
 	char * idk = malloc(1024 * sizeof(char));
+	char * from = malloc(1024 * sizeof(char));
 	printf("receiving message\n");
-	cs1550_get_msg("dylan", idk, "feehan");
+	cs1550_get_msg("dylan", idk, from);
 	if(idk == NULL) {
 		printf("bad stuff happened.\n");
 		return 0;
 	}
+	char * m2 = malloc(1024 * sizeof(char));
+	cs1550_get_msg("richie", m2, "dingle");
 	printf("Message: %s\n", idk);
+	printf("Message2: %s\n", m2);
+	printf("it was sending\n");
+	cs1550_send_msg("dylan", "bigger", "feehan");
+	cs1550_send_msg("richie", "boy", "feehan");
+	char * m3 = malloc(1024 * sizeof(char));
+	cs1550_get_msg("dylan", m3, "feehan");
+	printf("Message3: %s\n", m2);
+	char * m4 = malloc(1024 * sizeof(char));
+	cs1550_get_msg("richie", m3, "feehan");
+	printf("Message4: %s\n", m2);
 	return 0;
 }
-
