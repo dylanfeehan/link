@@ -10,21 +10,28 @@ void usage() {
 }
 void send_message_wrapper(char * to, char * message) {
     char from[20];
-    printf("who are you: ");
+    printf("who is sending: ");
     scanf("%20s", from);
     send_message_syscall(to, message, from);
 }
 void get_message_wrapper() {
     char to[20];
-    printf("who are you: ");
+    printf("who is receiving: ");
     scanf("%20s", to);
-    char * message = malloc(1024 * sizeof(char));
-    char * from = malloc(1024 * sizeof(char));
     // returns an int so this is wrong
-    get_message_syscall(to, message, from);
-
-    printf("message: %s\n", message);
-    printf("from: %s\n", from);
+    char * message;
+    char * from;
+    int more_strings;
+    do {
+        message = malloc(1024 * sizeof(char));
+        from = malloc(1024 * sizeof(char));
+        more_strings = get_message_syscall(to, message, from);
+        printf("message: %s\n", message);
+        printf("from: %s\n", from);
+        free(message);
+        free(from);
+    }
+    while(more_strings);
 }
 
 int main(int argc, char ** argv) {
@@ -48,6 +55,16 @@ int main(int argc, char ** argv) {
     }
     */
     send_message_wrapper("jon", "hello world");
+    send_message_wrapper("jon", "goodbye world");
+    send_message_wrapper("dylan", "hey dylan");
+    send_message_wrapper("dylan", "bye dylan");
+    get_message_wrapper();
+    get_message_wrapper();
+    send_message_wrapper("jon", "hello world");
+    send_message_wrapper("jon", "goodbye world");
+    send_message_wrapper("dylan", "hey dylan");
+    send_message_wrapper("dylan", "bye dylan");
+    get_message_wrapper();
     get_message_wrapper();
 }
 
@@ -130,6 +147,14 @@ struct user_node * findUserNode(char * user) {
 
 struct message_node * create_message_node(char * from, char * message) {
     struct message_node * new_message_node = malloc(sizeof(struct message_node));
+    if(new_message_node == NULL) {
+        printf("new message node is null\n");
+    }
+    if(from == NULL) {
+        printf("from is null\n");
+    }
+    new_message_node->from = NULL;
+    char * idk = malloc(sizeof(char) * 3);
     new_message_node->from = malloc(sizeof(char) * strlen(from));
     new_message_node->message = malloc(sizeof(char) * strlen(message));
     strcpy(new_message_node->from, from);
@@ -139,13 +164,21 @@ struct message_node * create_message_node(char * from, char * message) {
 
 // this needs to return both from and to... how about a char**?
 struct message_node * get_message_queue_head(struct user_node * curr_user_node) {
+    printf("yeahd its me\n");
     if(curr_user_node->message_count == 0) {
         return NULL; // this means .. we're out of strings.. return 0;
     }
     struct message_node * ret_message_node = curr_user_node->message_queue_head;
+    if(ret_message_node == NULL) {
+        printf("somehow this users head of message queue is null\n");
+    }
 
     // update the user's head and tail references
-    curr_user_node->message_queue_head = ret_message_node->next;
+    printf("this migth blow\n");
+    printf("curr_user_node->message_queue_yuead %p\n", curr_user_node->message_queue_head);
+    printf("ret_message_node->next: %p\n", ret_message_node->next);
+    curr_user_node->message_queue_head = ret_message_node->next; // THIS IS A SIDE EFFECT OF THE ERROR!
+    printf("yeah that blew\n");
     if(curr_user_node->message_queue_head == NULL) {
         curr_user_node->message_queue_tail == NULL;
     }
@@ -177,22 +210,31 @@ int send_message_syscall(char * to, char * message, char * from) {
 }
 
 int get_message_syscall(char * to, char * message, char * from) {
+    printf("1\n");
     struct user_node * node_exists = findUserNode(to);   
     if(!node_exists) {
         printf("user does not exist\n");
         exit(0);
     }
+    printf("2\n");
     struct message_node * message_queue_head = get_message_queue_head(node_exists);
 
+    printf("3\n");
     strcpy(from, message_queue_head->from);
+    printf("3.5\n");
     strcpy(message, message_queue_head->message);
+    printf("4\n");
     ///////////////////
     // free the node //
     ///////////////////
     // free ret_message_node    
+    printf("5\n");
     free(message_queue_head->from);
     free(message_queue_head->message);
     free(message_queue_head);
+    if(node_exists->message_queue_head == NULL) {
+        node_exists->message_queue_tail = NULL;
+    }
 
-    return 0;
+    return node_exists->message_count > 0;
 }
