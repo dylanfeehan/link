@@ -38,7 +38,7 @@ struct user_node * user_list_head = NULL;
 // holds the recently.. gotten.. node
 struct user_node * cached_node = NULL;
 
-// checked
+// checked for refactor
 void insert_head(struct user_node * user) {
 	if(user == NULL) {
 		printf("cannot give insert_head a null head to insert\n");
@@ -56,48 +56,53 @@ void insert_head(struct user_node * user) {
 	user_list_head = user;
 }
 
-// NEEDS CHECKING
-// a non null message node, a non null string node
-void insert_message_at_tail(struct user_node * user_node, struct message_node * new_tail) {
-	// tail of message node could be null???? yes... no... actuall no...  lets make it so that's not possible
-	// set string node next to null, since it's the tail
+// checked for refactor
+/*
+	inserts the given new message node at the tail of the queue
+	@param user_node curr_user_node the node containing the message queue
+
+*/
+void insert_message_at_tail(struct user_node * curr_user_node, struct message_node * new_tail) {
+	// why not.. it already has the message and from btw
 	new_tail->next = NULL; // not null.
-	// get the current tail of the... .. .. string queue for this message
-	struct message_node * current_tail = user_node->message_queue_tail;
+	// curr tail of the message queue
+	struct message_node * curr_tail = curr_user_node->message_queue_tail;
 	// make the new tail
-	if(current_tail == NULL) { // if theres no string list make both poiters the new node
-		user_node->message_queue_head = new_tail;
-		user_node->message_queue_tail = new_tail;
+	if(curr_tail == NULL || curr_tail->message == NULL) { // if theres no string list make both pointers point to the new node
+		printf("i happen.. its null");
+		curr_user_node->message_queue_head = new_tail;
+		curr_user_node->message_queue_tail = new_tail;
 	}
 	else {
-		current_tail->next = new_tail; // not null. // else update it
+		curr_tail->next = new_tail; // not null. // else update it
 		// now the message_node tail field points to our new tail!
-		user_node->message_queue_tail = new_tail;
+		curr_user_node->message_queue_tail = new_tail;
 	}
 }
 
-// returns 1 if the specified user matches the user of the user_node
-int findUser(struct user_node * node, char * user) {
-	return my_strcmp(node->user, user);
-}
-
+// checked for refactoring
+// gets the node of a user based on specified ... user param
+// sneding them a message? find them to populate their message list
+// recieving a message? find you to retrieve your messages... there ya go :)
 struct user_node * findUserNode(char * user) {
-	if(cached_node != NULL && compareHelper(cached_node, user)) {
+	if(cached_node != NULL && my_strcmp(cached_node->user, user)) {
 		return cached_node;
 	}
 	struct user_node * node = user_list_head; 
 
-	while(node != NULL && !compareHelper(node, user)) {
+	while(node != NULL && !my_strcmp(node->user, user)) {
 		node = node->next;
 	}
 	cached_node = node;
 	return node;
 }
 
+// woah this is fucking really shitty!!!!
+// checking for refactor
 void addMessageNode(const char * to, const char * message, const char * from) {
 	// from .. we place that in the message node... 
 	// to: to find the node
-	struct user_node * nodeExists = findMessageNode(to); // since it's add
+	struct user_node * nodeExists = findUserNode(to); // since it's add
 	struct message_node * messages;
 
  	// if node exists, string tail shouldn't be nul
@@ -141,6 +146,7 @@ void addMessageNode(const char * to, const char * message, const char * from) {
 		new_message_node->from = malloc(sizeof(char) * from_len);
 		strcpy(new_message_node->message, message);
 		strcpy(new_message_node->from, from);
+		printf("new_message_node->message: %s\n", new_message_node->message);
 
 		// allocate size for pointer
 		new_message_node->next = malloc(sizeof(struct message_node));
@@ -150,6 +156,8 @@ void addMessageNode(const char * to, const char * message, const char * from) {
 		insert_message_at_tail(new_user_node, new_message_node);
 		insert_head(new_user_node);
 		new_user_node->message_count = 1;
+		printf("message added: %s\n", new_user_node->message_queue_tail->message); // this verifies that the issue is in get!
+		printf("message from send: %s\n", user_list_head->message_queue_tail->message);
 	}
     return;
 }
@@ -171,39 +179,36 @@ int cs1550_send_msg(const char * to, const char * msg, const char * from) {
 	return 0;
 }
 
-char * getStringListHead(char * msg, struct user_node * curr_user_node) {
-	// idk
-	printf("1\n");
+char * getStringListHead(struct user_node * curr_user_node) {
+	int len;
+	char * val;
 	if(curr_user_node->message_count == 0) {
 		return NULL; // not an error.. you're just done bby
 	}
-	printf("2\n");
     struct message_node * curr_message_node = curr_user_node->message_queue_head;
-	printf("2.5\n");
 	// here it is!
 	if(curr_message_node == NULL) {
 		printf("you done fucked up gamer\n");
 	}
 	if(curr_message_node->message == NULL) {
+		printf("inside of %s\n", curr_user_node->user);
 		printf("you done fucked up gamer pt 2\n");
 	}
-	int len = strlen(curr_message_node->message);
-	printf("3\n");
-	char * val = malloc(sizeof(char) * len);
-	msg = malloc(sizeof(char) * len);
-	printf("4\n");
+	len = strlen(curr_message_node->message);
+	val = malloc(sizeof(char) * len);
+
 	strcpy(val, curr_message_node->message);
-	strcpy(msg, val);
-	printf("5\n");
 
 	// update this message node string list
 	curr_user_node->message_queue_head = curr_message_node->next;
 	curr_user_node->message_count = curr_user_node->message_count - 1;
-	return msg;
+	printf("message: %s\n", val);
+	return val;
 }
 
 int cs1550_get_msg(const char * to, char * msg, const char * from)
 {
+	printf("message from get: %s\n", user_list_head->message_queue_head->message);
 	printf("initiationg to and from\n");
 	char * k_to;
 	char * k_from;
@@ -212,14 +217,19 @@ int cs1550_get_msg(const char * to, char * msg, const char * from)
 	strcpy(k_from, from);
 
 	printf("checking if node exists\n");
-	struct message_list * nodeExists = findMessageNode(to, from);
+	struct user_node * nodeExists = findUserNode(to);
 	if(!nodeExists) {
 		return -1;
 	}
 	// TODO: this is a probem vv
 	printf("getting string\n");
 	   // wait how to do this?
-    msg = getStringListHead(msg, nodeExists);
+	char * temp = malloc(1024);
+    temp = getStringListHead(nodeExists);
+	printf("yo: %s\n", temp);
+	printf("temp before cpy: %s\n", temp);
+	strcpy(msg, temp);
+
 	if(!msg) {
 		return 0;
 	 	freeMem(nodeExists);
@@ -231,9 +241,9 @@ int cs1550_get_msg(const char * to, char * msg, const char * from)
 int main() {
 	printf("sending message\n");
 	cs1550_send_msg("dylan", "big", "feehan");
-	char * idk = NULL;
+	char * idk = malloc(1024 * sizeof(char));
 	printf("receiving message\n");
-	cs1550_get_msg("dylan", &idk, "feehan");
+	cs1550_get_msg("dylan", idk, "feehan");
 	if(idk == NULL) {
 		printf("bad stuff happened.\n");
 		return 0;
