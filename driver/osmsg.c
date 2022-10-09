@@ -6,66 +6,79 @@ int send_message_syscall(char * to, char * message, char * from);
 int get_message_syscall(char * to, char * message, char * from);
 
 void usage() {
-        printf("usage:\n    -r: receive messages\n    -s <user> <string>: send message\n");
+        printf("usage:\n    <user>: receive messages\n    <to> <message> <from>: send message\n");
 }
-void send_message_wrapper(char * to, char * message) {
-    char from[20];
-    printf("who is sending: ");
-    scanf("%20s", from);
-    send_message_syscall(to, message, from);
+void send_message_wrapper(char ** args) {
+    send_message_syscall(args[0], args[1], args[2]);
 }
-void get_message_wrapper() {
-    char to[20];
-    printf("who is receiving: ");
-    scanf("%20s", to);
-    // returns an int so this is wrong
-    char * message;
-    char * from;
-    int more_strings;
+void get_message_wrapper(char ** args) {
+    char * str = args[0];
+    int length = strlen(str);
+    *(str + length - 1) = 0;
+//void get_message_wrapper(char * receiver) {
+    // args[0] is to
+    char * message; // space for message
+    char * from; // space for from
+    int more_strings; // int for to know if more strings
     do {
         message = malloc(1024 * sizeof(char));
         from = malloc(1024 * sizeof(char));
-        more_strings = get_message_syscall(to, message, from);
-        printf("message: %s\n", message);
-        printf("from: %s\n", from);
-        free(message);
-        free(from);
+        more_strings = get_message_syscall(str, message, from);
+        //more_strings = get_message_syscall(receiver, message, from);
+            printf("message: %s\n", message);
+            printf("from:    %s\n", from);
+            free(message);
+            free(from);
     }
     while(more_strings);
 }
 
 int main(int argc, char ** argv) {
-    /*
-    if(argc <= 1 | argc == 3 || argc > 4) {
+    while(1) {
         usage();
-        exit(0);
-    }
-    if(strncmp(*(argv + 1), "-s", 2) == 0) {
-        if(argc != 4) {
-            usage();
+        printf("> ");
+        char * input;
+        size_t bufsize = 29;
+        input = malloc(sizeof(char) * bufsize);
+        fflush(stdin);
+        getline(&input, &bufsize, stdin);
+        char * pch;
+        pch = strtok (input, " ");
+        char * args[3];
+        int count = 0;
+        while(pch != NULL) {
+            args[count] = pch;
+            pch = strtok(NULL, " ");
+            count = count + 1;
         }
-        printf("Sending a message\n");
-        send_message_wrapper(*(argv + 2), *(argv + 3));
-    }
-    else if(strncmp(*(argv + 1), "-r", 2) == 0) {
-        if(argc != 2) {
-            usage();
+        if(strncmp(args[0], "exit", 4) == 0) {
+            break;
         }
-        get_message_wrapper();
+        if(count == 1) {
+            get_message_wrapper(args);
+        }
+        else if(count == 3) {
+            send_message_wrapper(args);
+        }
+        else {
+            usage();
+            continue;
+        }
     }
+    return 0;
+    /*
+    send_message_syscall("jon", "hey jon", "dylan");
+    get_message_wrapper("jon");
+    send_message_syscall("dylan", "hey dylan", "jon");
+    get_message_wrapper("dylan");
+
+    send_message_syscall("jon", "hey again jon", "dylan");
+    send_message_syscall("jon", "hey again again jon", "dylan");
+    get_message_wrapper("jon");
+    send_message_syscall("dylan", "hey again dylan", "jon");
+    send_message_syscall("dylan", "hey again again dylan", "jon");
+    get_message_wrapper("dylan");
     */
-    send_message_wrapper("jon", "hello world");
-    send_message_wrapper("jon", "goodbye world");
-    send_message_wrapper("dylan", "hey dylan");
-    send_message_wrapper("dylan", "bye dylan");
-    get_message_wrapper();
-    get_message_wrapper();
-    send_message_wrapper("jon", "hello world");
-    send_message_wrapper("jon", "goodbye world");
-    send_message_wrapper("dylan", "hey dylan");
-    send_message_wrapper("dylan", "bye dylan");
-    get_message_wrapper();
-    get_message_wrapper();
 }
 
 //////////////////
@@ -164,21 +177,16 @@ struct message_node * create_message_node(char * from, char * message) {
 
 // this needs to return both from and to... how about a char**?
 struct message_node * get_message_queue_head(struct user_node * curr_user_node) {
-    printf("yeahd its me\n");
     if(curr_user_node->message_count == 0) {
         return NULL; // this means .. we're out of strings.. return 0;
     }
     struct message_node * ret_message_node = curr_user_node->message_queue_head;
     if(ret_message_node == NULL) {
-        printf("somehow this users head of message queue is null\n");
+        printf("probably bad\n");
     }
 
     // update the user's head and tail references
-    printf("this migth blow\n");
-    printf("curr_user_node->message_queue_yuead %p\n", curr_user_node->message_queue_head);
-    printf("ret_message_node->next: %p\n", ret_message_node->next);
     curr_user_node->message_queue_head = ret_message_node->next; // THIS IS A SIDE EFFECT OF THE ERROR!
-    printf("yeah that blew\n");
     if(curr_user_node->message_queue_head == NULL) {
         curr_user_node->message_queue_tail == NULL;
     }
@@ -210,25 +218,24 @@ int send_message_syscall(char * to, char * message, char * from) {
 }
 
 int get_message_syscall(char * to, char * message, char * from) {
-    printf("1\n");
     struct user_node * node_exists = findUserNode(to);   
     if(!node_exists) {
         printf("user does not exist\n");
         exit(0);
     }
-    printf("2\n");
+    if(node_exists->message_count == 0) {
+        strcpy(from, "n/a");
+        strcpy(message, "No current messages");
+        return 0;
+    }
     struct message_node * message_queue_head = get_message_queue_head(node_exists);
 
-    printf("3\n");
     strcpy(from, message_queue_head->from);
-    printf("3.5\n");
     strcpy(message, message_queue_head->message);
-    printf("4\n");
     ///////////////////
     // free the node //
     ///////////////////
     // free ret_message_node    
-    printf("5\n");
     free(message_queue_head->from);
     free(message_queue_head->message);
     free(message_queue_head);
