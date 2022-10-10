@@ -6,67 +6,45 @@ int send_message_syscall(char * to, char * message, char * from);
 int get_message_syscall(char * to, char * message, char * from);
 
 void usage() {
-        printf("usage:\n    <user>: receive messages\n    <to> <message> <from>: send message\n");
+        printf("usage:\n    -r: receive messages\n    -s <user> <string>: send message\n");
 }
-void send_message_wrapper(char ** args) {
-    send_message_syscall(args[0], args[1], args[2]);
+void send_message_wrapper(char * to, char * message) {
+    char from[20];
+    printf("who are you: ");
+    scanf("%20s", from);
+    send_message_syscall(to, message, from);
 }
-void get_message_wrapper(char ** args) {
-    char * str = args[0];
-    int length = strlen(str);
-    *(str + length - 1) = 0;
-    char * message; // space for message
-    char * from; // space for from
-    int more_strings; // int for to know if more strings
-    do {
-        message = malloc(1024 * sizeof(char));
-        from = malloc(1024 * sizeof(char));
-        more_strings = get_message_syscall(str, message, from);
-        if(more_strings == -1) {
-            printf("error occurred.\n");
-            break;
-        }
-        printf("message: %s\n", message);
-        printf("from:    %s\n", from);
-        free(message);
-        free(from);
-    }
-    while(more_strings);
+void get_message_wrapper() {
+    char to[20];
+    printf("who are you: ");
+    scanf("%20s", to);
+    char * message = malloc(1024 * sizeof(char));
+    char * from = malloc(1024 * sizeof(char));
+    // returns an int so this is wrong
+    get_message_syscall(to, message, from);
+
+    printf("message: %s\n", message);
+    printf("from: %s\n", from);
 }
 
 int main(int argc, char ** argv) {
-    while(1) {
+    if(argc <= 1 | argc == 3 || argc > 4) {
         usage();
-        printf("> ");
-        char * input;
-        size_t bufsize = 29;
-        input = malloc(sizeof(char) * bufsize);
-        fflush(stdin);
-        getline(&input, &bufsize, stdin);
-        char * pch;
-        pch = strtok (input, " ");
-        char * args[3];
-        int count = 0;
-        while(pch != NULL) {
-            args[count] = pch;
-            pch = strtok(NULL, " ");
-            count = count + 1;
-        }
-        if(strncmp(args[0], "exit", 4) == 0) {
-            break;
-        }
-        if(count == 1) {
-            get_message_wrapper(args);
-        }
-        else if(count == 3) {
-            send_message_wrapper(args);
-        }
-        else {
-            usage();
-            continue;
-        }
+        exit(0);
     }
-    return 0;
+    if(strncmp(*(argv + 1), "-s", 2) == 0) {
+        if(argc != 4) {
+            usage();
+        }
+        printf("Sending a message\n");
+        send_message_wrapper(*(argv + 2), *(argv + 3));
+    }
+    else if(strncmp(*(argv + 1), "-r", 2) == 0) {
+        if(argc != 2) {
+            usage();
+        }
+        get_message_wrapper();
+    }
 }
 
 //////////////////
@@ -148,14 +126,6 @@ struct user_node * findUserNode(char * user) {
 
 struct message_node * create_message_node(char * from, char * message) {
     struct message_node * new_message_node = malloc(sizeof(struct message_node));
-    if(new_message_node == NULL) {
-        printf("new message node is null\n");
-    }
-    if(from == NULL) {
-        printf("from is null\n");
-    }
-    new_message_node->from = NULL;
-    char * idk = malloc(sizeof(char) * 3);
     new_message_node->from = malloc(sizeof(char) * strlen(from));
     new_message_node->message = malloc(sizeof(char) * strlen(message));
     strcpy(new_message_node->from, from);
@@ -169,12 +139,9 @@ struct message_node * get_message_queue_head(struct user_node * curr_user_node) 
         return NULL; // this means .. we're out of strings.. return 0;
     }
     struct message_node * ret_message_node = curr_user_node->message_queue_head;
-    if(ret_message_node == NULL) {
-        printf("probably bad\n");
-    }
 
     // update the user's head and tail references
-    curr_user_node->message_queue_head = ret_message_node->next; // THIS IS A SIDE EFFECT OF THE ERROR!
+    curr_user_node->message_queue_head = ret_message_node->next;
     if(curr_user_node->message_queue_head == NULL) {
         curr_user_node->message_queue_tail == NULL;
     }
@@ -209,14 +176,9 @@ int get_message_syscall(char * to, char * message, char * from) {
     struct user_node * node_exists = findUserNode(to);   
     if(!node_exists) {
         printf("user does not exist\n");
-        return -1;
+        exit(0);
     }
-    if(node_exists->message_count == 0) {
-        strcpy(from, "n/a");
-        strcpy(message, "No current messages");
-        return 0;
-    }
-    struct message_node * message_queue_head = get_message_queue_head(node_exists);
+    struct message_node * message_queue_head = get_message_queue_head;
 
     strcpy(from, message_queue_head->from);
     strcpy(message, message_queue_head->message);
@@ -224,12 +186,12 @@ int get_message_syscall(char * to, char * message, char * from) {
     // free the node //
     ///////////////////
     // free ret_message_node    
-    free(message_queue_head->from);
+    free(message_queue_heaad->from);
     free(message_queue_head->message);
     free(message_queue_head);
-    if(node_exists->message_queue_head == NULL) {
-        node_exists->message_queue_tail = NULL;
-    }
 
-    return node_exists->message_count > 0;
+    return 0;
 }
+
+
+
