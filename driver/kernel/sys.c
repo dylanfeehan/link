@@ -151,54 +151,250 @@ int fs_overflowgid = DEFAULT_FS_OVERFLOWGID;
 EXPORT_SYMBOL(fs_overflowuid);
 EXPORT_SYMBOL(fs_overflowgid);
 
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
 
 // my code start
-
-char * message;
-
-
-struct string_list { 
-	struct list_head list;
+/* 
+	struct definitions
+*/
+struct message_node {
+	// next pointer
+	struct message_node * next;
+	// data
+	char * from;
 	char * message;
 };
 
-struct string_list list_h;
+struct user_node {
+	// next pointer
+	struct user_node * next;
+	char * user;
 
+	// message queue;
+	struct message_node * message_queue_head;
+	struct message_node * message_queue_tail;
 
-
-void message_queue_add_entry(struct string_list * new) {
-	struct list_head * ptr = &(list_h.list);
-	struct string_list * entry;
-	entry = list_entry(ptr, struct string_list, list);
-	// if i wanted to do stuff with this i could
-	list_add(&(new->list), ptr);
+	// count
+	int message_count;
 }
-void message_queue_get_entry(void) {
-	struct list_head * ptr = &(list_h.list);
-	struct string_list * entry;
-	entry = list_entry(ptr, struct string_list, list);
-	//printk(KERN_ALERT "message received.\nMessage: %s\n", entry->message);
+
+// initialize them to null 
+struct user_node * user_list_head = NULL;
+struct user_node * cached_node = NULL;
+
+long insert_user_node(struct user_node * user) {
+	if(user == NULL) {
+		return -1;
+	}
+	if(user_list_head == NULL) {
+		user_list_head = user;
+		user->next = NULL;
+	}
+	else {
+		user->next = user_list_head;
+		user_list_head = user;
+	}
+	return 0;
 }
+
+// user node message belongs to, which contains list to append it to, and the node to append
+long append_message_node(struct user_node * curr_user, struct message_node * new_tail) {
+	if(curr_user == NULL || new_tail == NULL) {
+		return -1;
+	}
+
+	new_tail->next = NULL;
+	struct message_node * curr_tail = curr_user->message_queue_tail;
+
+	if(curr_tail == NULL) {
+		curr_user->message_queue_head = new_tail;
+		curr_user->message_queue_tail = new_tail;
+	}
+	else {
+		curr_tail->next = new_tail;
+		curr_user->message_queue_tail = new_tail;
+	}
+	return 0;
+}
+
+struct user_node* find_user_node(const char __user * user) {
+	//  if the cached node is the user we're looking for, return it
+	if(cached_node != NULL && strcmp(cached_node->user, user) == 0) {
+		return cached_node;
+	}
+	struct user_node * node = user_list_head;
+	while(node != NULL && strcmp(node->user, user) != 0) {
+		node = node->next;
+	}
+	cached_node = node;
+	return node;
+}
+
+// creates a message node... kinda function bloat but i didn't want to do this in add....
+struct message_node* create_message_node(const char __user * from, const char __user * message) {
+	struct message_node * new_message = kmalloc(sizeof(struct message_node), GFP_KERNEL);
+	if(new_message == NULL) {
+		printk(KERN_ALERT "kmalloc error in create message node.\n");
+		return NULL; // TODO: handle in caller of create message node.
+	}
+	new_message->from = kmalloc((sizeof(char) * strlen(from)), GFP_KERNEL);
+	if(new_message->from == NULL) {
+		printk(KERN_ALERT "KMALLOC ERROR ALLOCATING SPACE FOR FROM\n");
+		return NULL;
+	}
+	new_message->message = kmalloc((sizeof(char) * strlen(message), GFP_KERNEL));
+	if(new_message->message == NULL) {
+		printk(KERN_ALERT "KMALLOC ERROR ALLOCATING SPACE FOR FROM\n");
+		return NULL;
+	}
+
+	//strcpy(new_message->from, from);
+	//strcpy(new_message->message, message);
+	int bytes = copy_from_user(new_message->from, from, strlen(from));
+	if(bytes > 0) {
+		printk(KERN_ALERT "ERROR COPYING\n");
+		return NULL;
+	}
+	bytes = copy_from_user(new_message->message, message, strlen(message));
+	if(bytes > 0) {
+		printk(KERN_ALERT "ERROR COPYING\n");
+		return NULL;
+	}
+
+	return new_message;
+} 
+
+// return the node ... message node
+struct message_node * remove_message_queue_head(struct user_node * user) {
+	if(user->message_count == 0) {
+		return NULL; // TODO: handle this too, but in get
+	}
+	struct message_node * message = user->message_queue_head;
+	if(message == NULL) {
+		return NULL; // TODO: handle this too, but in get
+	}
+	// update the user's head and tail references
+	user->message_queue_head = message->next;
+	if(user->message_queue_head == NULL) {
+		user->message_queue_tail = NULL;
+	}
+	user->message_count = user->message_count - 1;
+	return message;	
+}
+
+long send_message_syscall(const char __user * to, const char __user * message, const char __user * from) {
+	int res = 0;
+	struct user_node * user = find_user_node(to);
+	struct message_node * new_message = create_message_node(from, message);
+	if(new_message == NULL) {
+		printk(KERN_ALERT "MALLOC ERROR CREATING MESSAGE NODE\n");
+		return -1;
+	}
+
+	if(user) { 
+		res = append_message_node(user, new_message);
+		if(res < 0) {
+			return -1;
+		}
+		user->message_count = user->message_count + 1;
+	}
+	else {
+		// allocate user node and copy username into it
+		struct user_node * new_user = kmalloc(sizeof(struct user_node), GFP_KERNEL);
+		if(new_user == NULL) {
+			printk(KERN_ALERT "MALLOC ERROR CREATING USER NODE\n");
+			return -1;
+		}
+		new_user->user = kmalloc(sizeof(char) * strlen(to));
+		if(new_user->user == NULL) {
+			printk(KERN_ALERT "MALLOC ERROR ALLCOATING SPACE IN USER NODE\n");
+			return -1;
+		}
+		int bytes = copy_from_user(new_user->user, user, strlen(to));
+		if(bytes != 0) {
+			printk(KERN_ALERT "ERROR COPYING\n");
+			return -1;
+		}
+
+		// add message
+		res = append_message_node(new_user, new_message);
+		if(res < 0) {
+			return -1;
+		}
+
+		res = insert_user_node(new_user);
+		if(res < 0) {
+			return -1;
+		}
+		new_user->message_count = 1;
+	}
+	return 0;
+}
+// some stuff should be... allocated... like from and message ! to is given...
+long get_message_syscall(const char __user * to, const char __user * message, const char __user * from) {
+	if(to == NULL || message == NULL || from == NULL) {
+		return -1;
+	}
+	struct user_node * user = find_user_node(to);
+	if(!user) {
+		printk(KERN_ALERT "User does not exist\n");
+		return -1;
+	}
+	if(user->message_count == 0) {
+		printk(KERN_ALERT "No more messages, should not have been called\n");
+		return -1;
+	}
+	struct message_node * message_queue_head = remove_message_queue_head(user);
+	if(message_queue_head == NULL) {
+		printk(KERN_ALERT "Error removing message queue head\n");
+		return -1;
+	}
+
+	copy_to_user(from, message_queue_head->from, strlen(message_queue_head->from));
+	copy_to_user(message, message_queue_head->message, strlen(message_queue_head->message));
+
+	// free the node
+	free(message_queue_head->from);
+	free(message_queue_head->message);
+	free(message_queue_head);
+	if(user->message_queue_head == NULL) {
+		user->message_queue_tail = NULL;
+	}
+	return (user->message_count > 0) ? 1 : 0;
+}
+
 
 SYSCALL_DEFINE3(cs1550_send_msg, const char __user *, to, const char __user *, msg, const char __user *, from) 
 {
-	INIT_LIST_HEAD(&list_h.list);
-	printk(KERN_ALERT "ENTERED SEND\n");
-	struct string_list *  node = kmalloc(sizeof(struct string_list), GFP_KERNEL);
-	strcpy(node->message, msg);
-	message_queue_add_entry(node);
-	printk(KERN_ALERT "sending message: %s\n", node->message);
-	return 0;
+	// wrapper
+	return send_message_syscall(to, message, from);
 }
 SYSCALL_DEFINE3(cs1550_get_msg, const char __user *, to, const char __user *, msg, const char __user *, from) 
 {
-	// read from the linked list
-	printk(KERN_ALERT "ENTERED GET\n");
-	message_queue_get_entry(); // simply prints it out 
-	return 0;
+	// wrapper
+	return get_message_syscall(to, messaeg, from);
 }
 
 // my code end 
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
+///////////////////////////
 
 /*
  * Returns true if current's euid is same as p's uid or euid,
